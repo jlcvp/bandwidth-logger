@@ -1,0 +1,42 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use Time::HiRes;
+use DBI;
+
+my $reporting_interval = 10.0; # seconds
+my $bytes_this_interval = 0;
+my $start_time = [Time::HiRes::gettimeofday()];
+
+my $dsn = "DBI:mysql:$ENV{'DBNAME'}";
+my $username = $ENV{'DBUSER'};
+my $password = $ENV{'DBPASS'};
+
+STDOUT->autoflush(1);
+
+my $dbh = DBI->connect($dsn, $username, $password) or
+            die("Error connecting to the database: $DBI::errstr\n");
+
+my $sql = "INSERT INTO netlog_up(band) VALUES (?)";
+
+while (<>) {
+  if (/ length (\d+):/) {
+    $bytes_this_interval += $1;
+    my $elapsed_seconds = Time::HiRes::tv_interval($start_time);
+    if ($elapsed_seconds > $reporting_interval) {
+        my $bps = $bytes_this_interval / $elapsed_seconds;
+        my $stmt = $dbh->prepare($sql);
+        
+        $stmt->execute( $bps );
+        $stmt->finish();
+        $start_time = [Time::HiRes::gettimeofday()];
+        $bytes_this_interval = 0;
+    }
+  }
+
+}
+
+
+
+
+
